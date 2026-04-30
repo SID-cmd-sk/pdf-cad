@@ -89,3 +89,12 @@ credentials.json
 *.key
 .credentials
 desktop/node_modules/electron/dist/electron
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
