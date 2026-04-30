@@ -1,0 +1,29 @@
+{
+  "summary": "Full-stack testing of CAD Assist (FastAPI + SQLite + React). Backend: 15/15 pytest cases pass covering health, upload+auto-process for both samples, jobs list, preview JPEG, DXF download, reprocess, delete, unsupported-extension validation, seeded rules, correction-creates-rule, rule patch toggle, rule delete. Frontend: home page, upload zone, system panel (backend online, tesseract ready, fitz ready, sqlite local), drag-drop upload via hidden input, jobs-table population, navigation to /job/:id, geometry-canvas + layer-panel (GEOMETRY/TEXT/DIMENSIONS/UNCERTAIN), download-dxf button, correction-panel-empty initial state, correction-panel renders fully when an uncertain item is clicked (showing ID, confidence, data, apply-similar-toggle, action-to-circle, action-mark-certain, action-delete), /rules page with rules-table + rule-toggle/rule-delete buttons, /about page with pipeline description, back-home navigation. No JS pageerrors detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "GeometryCanvas", "issue": "SVG entity click target is the stroke only (fill=\"none\"). Clicking the visual center of an arc/circle/polyline lands inside the bounding box but on transparent area, so the entity click does not register and the correction panel does not open. Users have a similar usability problem with thin strokes. Workaround in the UI is the right-side 'Uncertain Items' list which works correctly.", "selector": "svg [data-entity-id]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Improve SVG entity hit-area in GeometryCanvas: use pointer-events='visibleStroke' (already non-fill) AND add a transparent thicker hit overlay (e.g., second element with stroke='transparent', strokeWidth=10/scale, pointerEvents='stroke') so users can click thin lines/arcs reliably. The right-rail uncertain list already works as an alternative."
+  ],
+  "critical_code_review_comments": [
+    "server.py: pipeline.run_job is dispatched via loop.run_in_executor(None, ...) without awaiting / tracking the future. Errors raised inside run_job won't surface unless captured internally; verified jobs do reach status='done' via DB updates so it's working but unhandled exceptions could silently log only.",
+    "Default CORS allow_origins='*' combined with allow_credentials=True is technically inconsistent (browsers ignore credentials with wildcard). Acceptable for local-first app but worth tightening.",
+    "delete_job: filesystem cleanup wrapped in single try/except Exception:pass swallows errors; would help to log warnings.",
+    "GeometryCanvas hit-area issue noted in frontend_issues; consider invisible stroke overlay for clickability."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100% (all required testids present and flows working; one UX concern flagged)"},
+  "test_credentials": "none required",
+  "seed_data_creation": "Two jobs uploaded and then deleted by the backend test cleanup phase. Three jobs from manual frontend test remain in DB (geometry_demo.png x2, mechanical_part.png) and are visible on home jobs-table.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "backend_test.py covers full CRUD + pipeline. Pipeline takes ~3-7s per sample; _wait_for_done timeout=60s is sufficient. Note: DB get_entities filters out deleted=1 entities by default (include_deleted=False). The DXF starts with '0\\nSECTION' (no leading two spaces). Frontend SVG entity clicks miss because fill=none — use the uncertain-items list selector or a JS dispatchEvent to trigger CorrectionPanel programmatically.",
+  "rca of the issue": "GeometryCanvas: each entity is rendered as a single SVG primitive with fill='none'. Playwright (and real users) clicking near a hollow shape may miss the stroke. Fix: render a second invisible primitive with the same geometry, stroke='transparent', strokeWidth large (e.g., 10/view.scale), pointerEvents='stroke', sharing the same onClick handler — preserves visual fidelity while expanding hit area."
+}

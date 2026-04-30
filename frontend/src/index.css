@@ -1,0 +1,310 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --bg-0: #07090c;
+    --bg-1: #0b0e13;
+    --bg-2: #10141b;
+    --bg-3: #161b24;
+    --line: #1f2732;
+    --line-2: #2a3342;
+    --ink: #e6ebf2;
+    --ink-dim: #9aa4b2;
+    --ink-soft: #6b7382;
+    --accent: #00e5c8;         /* engineering cyan */
+    --accent-2: #f5a524;       /* amber highlight */
+    --danger: #ff4d4f;         /* red for errors */
+    --warn: #ffb020;
+    --ok: #00c48a;
+    --select: rgba(0, 229, 200, 0.18);
+}
+
+* {
+    border-color: hsl(var(--border));
+}
+
+html, body, #root {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg-0);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: 0.01em;
+}
+
+code, .mono, .font-mono {
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace !important;
+}
+
+@layer base {
+    :root {
+        --background: 220 20% 5%;
+        --foreground: 210 20% 92%;
+        --card: 220 20% 7%;
+        --card-foreground: 210 20% 92%;
+        --popover: 220 20% 7%;
+        --popover-foreground: 210 20% 92%;
+        --primary: 174 100% 45%;
+        --primary-foreground: 220 20% 5%;
+        --secondary: 220 15% 12%;
+        --secondary-foreground: 210 20% 92%;
+        --muted: 220 15% 12%;
+        --muted-foreground: 215 15% 60%;
+        --accent: 174 100% 45%;
+        --accent-foreground: 220 20% 5%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 210 20% 92%;
+        --border: 220 15% 15%;
+        --input: 220 15% 15%;
+        --ring: 174 100% 45%;
+        --radius: 0.375rem;
+    }
+}
+
+::selection {
+    background: var(--select);
+    color: var(--ink);
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-1);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--line-2);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #384254;
+}
+
+/* Layout utilities */
+.app-shell {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+    overflow: hidden;
+}
+.topbar {
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+}
+.brand {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    font-size: 13px;
+}
+.brand-sub {
+    color: var(--ink-dim);
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
+    margin-left: 4px;
+}
+.nav-link {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-dim);
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+.nav-link:hover { color: var(--ink); background: var(--bg-2); }
+.nav-link.active { color: var(--accent); }
+
+/* Dropzone */
+.dropzone {
+    border: 1px dashed var(--line-2);
+    border-radius: 6px;
+    padding: 56px 24px;
+    text-align: center;
+    background:
+        linear-gradient(var(--bg-1), var(--bg-1)) padding-box,
+        repeating-linear-gradient(45deg, transparent 0 8px, rgba(0, 229, 200, 0.04) 8px 9px);
+    transition: border-color 0.2s, transform 0.1s;
+}
+.dropzone.active {
+    border-color: var(--accent);
+    background:
+        linear-gradient(var(--bg-2), var(--bg-2)) padding-box,
+        repeating-linear-gradient(45deg, transparent 0 8px, rgba(0, 229, 200, 0.12) 8px 9px);
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    border: 1px solid var(--line-2);
+    background: var(--bg-2);
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn:hover { background: var(--bg-3); border-color: #3a4556; }
+.btn-primary {
+    background: var(--accent);
+    color: #05120f;
+    border-color: var(--accent);
+}
+.btn-primary:hover { background: #00ffd6; border-color: #00ffd6; }
+.btn-ghost { background: transparent; }
+.btn-danger { border-color: #4a1f23; color: var(--danger); }
+.btn-danger:hover { background: #1a0b0d; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Cards/panels */
+.panel {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+.panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.panel-body { padding: 14px; }
+
+/* Status chips */
+.chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--line-2);
+    color: var(--ink-dim);
+    display: inline-block;
+}
+.chip.ok { color: var(--ok); border-color: #14442e; background: rgba(0, 196, 138, 0.06); }
+.chip.warn { color: var(--warn); border-color: #4a2e0a; background: rgba(255, 176, 32, 0.06); }
+.chip.danger { color: var(--danger); border-color: #4a1f23; background: rgba(255, 77, 79, 0.06); }
+.chip.pending { color: var(--accent); border-color: #0a4a42; background: rgba(0, 229, 200, 0.06); }
+
+/* Canvas viewer */
+.canvas-wrap {
+    position: relative;
+    background: #0a0d12;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px, 40px 40px;
+    overflow: hidden;
+    cursor: grab;
+    user-select: none;
+}
+.canvas-wrap.grabbing { cursor: grabbing; }
+
+/* Entity overlay */
+svg .entity { transition: stroke 0.15s, stroke-width 0.15s; }
+svg .entity[data-uncertain="1"] { stroke: var(--danger); }
+svg .entity[data-selected="1"] { stroke: var(--accent-2) !important; stroke-width: 3 !important; filter: drop-shadow(0 0 6px var(--accent-2)); }
+svg .layer-GEOMETRY { stroke: #76f7e3; }
+svg .layer-TEXT { fill: #ffcc66; stroke: none; }
+svg .layer-DIMENSIONS { fill: #8ef0a0; stroke: #8ef0a0; }
+svg .layer-UNCERTAIN { stroke: var(--danger); }
+
+/* Tables */
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+}
+.table th {
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-2);
+    font-weight: 500;
+}
+.table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+}
+.table tr:hover td { background: var(--bg-2); }
+
+/* inputs */
+.input, textarea.input, select.input {
+    background: var(--bg-0);
+    border: 1px solid var(--line-2);
+    border-radius: 4px;
+    color: var(--ink);
+    padding: 8px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--accent); }
+
+/* Utility */
+.hairline { border-bottom: 1px solid var(--line); }
+.mono-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+}
+
+/* Entrance animations */
+@keyframes fade-in-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: fade-in-up 0.3s ease-out both; }
+
+/* Progress bar */
+.progress {
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.progress > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #00b8ff);
+    transition: width 0.3s;
+}
+
+.App { height: 100vh; }
