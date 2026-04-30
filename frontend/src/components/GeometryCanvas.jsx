@@ -36,7 +36,7 @@ export default function GeometryCanvas({ width, height, imageUrl, entities, laye
 
     const onMouseDown = (e) => {
         if (e.button !== 0) return;
-        if (e.target.closest("[data-entity-id]")) return;
+        if (e.target.closest("[data-entity-id], [data-entity-hit]")) return;
         setGrab(true);
         setDragStart({ x: e.clientX - view.x, y: e.clientY - view.y });
     };
@@ -65,20 +65,41 @@ export default function GeometryCanvas({ width, height, imageUrl, entities, laye
     const renderEntity = (e) => {
         const layer = e.uncertain ? "UNCERTAIN" : (e.layer || "GEOMETRY");
         const isSel = selectedId === e.id;
+        const onClick = (ev) => { ev.stopPropagation(); onSelect && onSelect(e); };
+        const hitWidth = Math.max(10, 12 / view.scale);
+        const strokeW = 2 / view.scale;
         const common = {
             className: `entity layer-${layer}`,
             "data-uncertain": e.uncertain ? "1" : "0",
             "data-selected": isSel ? "1" : "0",
             "data-entity-id": e.id,
-            onClick: (ev) => { ev.stopPropagation(); onSelect && onSelect(e); },
-            style: { cursor: "pointer", strokeWidth: 1.5 / view.scale, vectorEffect: "non-scaling-stroke" },
+            onClick,
+            style: { cursor: "pointer", vectorEffect: "non-scaling-stroke" },
+        };
+        const hit = {
+            "data-entity-hit": e.id,
+            onClick,
+            style: { cursor: "pointer", pointerEvents: "stroke" },
+            stroke: "transparent",
+            fill: "none",
+            strokeWidth: hitWidth,
         };
         const d = e.data || {};
         if (e.kind === "line") {
-            return <line key={e.id} {...common} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} strokeWidth={2 / view.scale} />;
+            return (
+                <g key={e.id}>
+                    <line {...hit} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} />
+                    <line {...common} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} strokeWidth={strokeW} />
+                </g>
+            );
         }
         if (e.kind === "circle") {
-            return <circle key={e.id} {...common} cx={d.cx} cy={d.cy} r={d.r} fill="none" strokeWidth={2 / view.scale} />;
+            return (
+                <g key={e.id}>
+                    <circle {...hit} cx={d.cx} cy={d.cy} r={d.r} />
+                    <circle {...common} cx={d.cx} cy={d.cy} r={d.r} fill="none" strokeWidth={strokeW} />
+                </g>
+            );
         }
         if (e.kind === "arc") {
             const sa = d.start_angle || 0;
@@ -88,15 +109,31 @@ export default function GeometryCanvas({ width, height, imageUrl, entities, laye
             const x2 = d.cx + d.r * Math.cos(ea);
             const y2 = d.cy + d.r * Math.sin(ea);
             const large = (ea - sa) > Math.PI ? 1 : 0;
-            return <path key={e.id} {...common} d={`M ${x1} ${y1} A ${d.r} ${d.r} 0 ${large} 1 ${x2} ${y2}`} fill="none" strokeWidth={2 / view.scale} />;
+            const dp = `M ${x1} ${y1} A ${d.r} ${d.r} 0 ${large} 1 ${x2} ${y2}`;
+            return (
+                <g key={e.id}>
+                    <path {...hit} d={dp} />
+                    <path {...common} d={dp} fill="none" strokeWidth={strokeW} />
+                </g>
+            );
         }
         if (e.kind === "polyline") {
             const pts = d.points || [];
             const str = pts.map((p) => `${p[0]},${p[1]}`).join(" ");
             if (d.closed) {
-                return <polygon key={e.id} {...common} points={str} fill="none" strokeWidth={2 / view.scale} />;
+                return (
+                    <g key={e.id}>
+                        <polygon {...hit} points={str} />
+                        <polygon {...common} points={str} fill="none" strokeWidth={strokeW} />
+                    </g>
+                );
             }
-            return <polyline key={e.id} {...common} points={str} fill="none" strokeWidth={2 / view.scale} />;
+            return (
+                <g key={e.id}>
+                    <polyline {...hit} points={str} />
+                    <polyline {...common} points={str} fill="none" strokeWidth={strokeW} />
+                </g>
+            );
         }
         if (e.kind === "text" || e.kind === "dimension") {
             const size = Math.max(8, (d.height || 16) * 0.9);
