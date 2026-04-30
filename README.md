@@ -11,6 +11,10 @@ No paid APIs. No cloud vision. All processing runs on the user's machine.
 ```bash
 ./start.sh
 ```
+or (cross-platform / double-click friendly):
+```bash
+python launch.py
+```
 
 This script automatically:
 
@@ -21,6 +25,12 @@ This script automatically:
 5. Starts the FastAPI backend on `:8001` and the React UI on `:3000`
 
 Open <http://localhost:3000> and drop a file on the upload zone.
+
+### Practical assumptions
+
+- Best results are obtained from scans at **200+ DPI**.
+- OCR and dimension extraction run locally via Tesseract when installed; if missing, geometry export still works.
+- DXF output units are inferred from detected dimension tokens (`mm`, `cm`, `in`) when possible, otherwise exported in drawing units.
 
 ### Requirements
 
