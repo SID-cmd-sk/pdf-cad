@@ -16,16 +16,32 @@ DESKTOP = ROOT / "desktop"
 BIN_DIR = DESKTOP / "bin"
 
 
+def _resolve_tool(tool: str) -> str:
+    """Resolve Windows shims like npm.cmd / npx.cmd reliably."""
+    if os.name == "nt":
+        for candidate in (f"{tool}.cmd", f"{tool}.exe", tool):
+            found = shutil.which(candidate)
+            if found:
+                return found
+        raise SystemExit(f"[build-exe] Missing required command: {tool} (or {tool}.cmd)")
+    found = shutil.which(tool)
+    if not found:
+        raise SystemExit(f"[build-exe] Missing required command: {tool}")
+    return found
+
+
 def run(cmd: list[str], cwd: Path | None = None) -> None:
-    print("[build-exe]", " ".join(cmd))
-    proc = subprocess.run(cmd, cwd=str(cwd or ROOT))
+    resolved = [cmd[0], *cmd[1:]]
+    if cmd and cmd[0] in {"npm", "npx", "pyinstaller"}:
+        resolved[0] = _resolve_tool(cmd[0])
+    print("[build-exe]", " ".join(resolved))
+    proc = subprocess.run(resolved, cwd=str(cwd or ROOT))
     if proc.returncode != 0:
         raise SystemExit(proc.returncode)
 
 
 def ensure(cmd: str) -> None:
-    if shutil.which(cmd) is None:
-        raise SystemExit(f"[build-exe] Missing required command: {cmd}")
+    _resolve_tool(cmd)
 
 
 def main() -> None:
