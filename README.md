@@ -11,6 +11,10 @@ No paid APIs. No cloud vision. All processing runs on the user's machine.
 ```bash
 ./start.sh
 ```
+or (cross-platform / double-click friendly):
+```bash
+python launch.py
+```
 
 This script automatically:
 
@@ -21,6 +25,12 @@ This script automatically:
 5. Starts the FastAPI backend on `:8001` and the React UI on `:3000`
 
 Open <http://localhost:3000> and drop a file on the upload zone.
+
+### Practical assumptions
+
+- Best results are obtained from scans at **200+ DPI**.
+- OCR and dimension extraction run locally via Tesseract when installed; if missing, geometry export still works.
+- DXF output units are inferred from detected dimension tokens (`mm`, `cm`, `in`) when possible, otherwise exported in drawing units.
 
 ### Requirements
 
@@ -119,7 +129,13 @@ The backend is a single Python app and the UI is a static React bundle, so wrapp
 2. Bundle the Python backend with PyInstaller: `pyinstaller --onefile backend/server.py` (on Windows make sure `tesseract.exe` is on the PATH or ship it alongside).
 3. Create a thin Electron main process that spawns the backend binary, waits until `:8001/api/health` is reachable, and loads the React build from disk.
 
-A recipe is left as an intentionally-small exercise — the code above is fully ready for it.
+For Windows local/CI builds, use one command from repo root:
+
+```powershell
+python scripts/build_exe.py
+```
+
+This produces an installer in `desktop/dist/`.
 
 ---
 
