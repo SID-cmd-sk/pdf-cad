@@ -2,6 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 import traceback
+import concurrent.futures
 import cv2
 
 from storage import db
@@ -9,9 +10,46 @@ from processing import ingest, preprocess, detect, ocr, reconstruct, export_dxf
 from learning import engine as learning
 
 
-def _save_preview(img, out_path: Path):
+def _save_preview(img, out_path: Path, quality: int = 70):
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(out_path), img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    cv2.imwrite(str(out_path), img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+
+
+def _process_single_page(job_id: str, pi: int, img, preview_dir: Path, vector_entities_for_page: list | None):
+    """Process one page — CPU-bound, safe to run in a worker thread."""
+    raw_path = preview_dir / f"p{pi}_raw.jpg"
+    prev_path = preview_dir / f"p{pi}_preview.jpg"
+    _save_preview(img, raw_path, quality=60)
+    pp = preprocess.preprocess(img)
+    _save_preview(pp["deskewed"], prev_path, quality=70)
+
+    ents: list[dict] = []
+    if vector_entities_for_page:
+        for v in vector_entities_for_page:
+            ents.append(v)
+    else:
+        ents.extend(detect.detect_all(pp["binary"], pp["gray"]))
+        try:
+            ents.extend(ocr.extract_text(pp["gray"]))
+        except Exception as oe:
+            db.log(job_id, "WARN", f"OCR failed page {pi}: {oe}")
+
+    for e in ents:
+        e["page_index"] = pi
+    ents = reconstruct.reconstruct(ents)
+    ents, applied = learning.apply_rules(ents)
+    if applied:
+        db.log(job_id, "INFO", f"Applied {applied} learned rule(s) on page {pi}")
+
+    return {
+        "page_index": pi,
+        "width": int(pp["deskewed"].shape[1]),
+        "height": int(pp["deskewed"].shape[0]),
+        "raw_path": str(raw_path),
+        "preview_path": str(prev_path),
+        "rotation": pp["rotation"],
+        "entities": ents,
+    }
 
 
 def run_job(job_id: str) -> dict:
@@ -48,79 +86,53 @@ def run_job(job_id: str) -> dict:
             if is_vector:
                 vector_entities = ingest.pdf_vector_entities(filepath)
 
-            for pi, img in page_iter:
-                db.update_job(job_id, stage=f"page {pi+1}/{total} preprocess", progress=0.05 + 0.85 * (pi / max(1, total)))
-                raw_path = preview_dir / f"p{pi}_raw.jpg"
-                prev_path = preview_dir / f"p{pi}_preview.jpg"
-                _save_preview(img, raw_path)
-
-                pp = preprocess.preprocess(img)
-                _save_preview(pp["deskewed"], prev_path)
-
-                ents = []
-                if is_vector and pi < len(vector_entities) and vector_entities[pi]:
-                    # Use vector extraction when available
-                    for v in vector_entities[pi]:
-                        v["page_index"] = pi
-                        ents.append(v)
-                else:
-                    ents.extend(detect.detect_all(pp["binary"], pp["gray"]))
+            # Parallelise across pages (2-4 workers is the sweet spot on most laptops)
+            max_workers = min(4, max(1, total))
+            done = 0
+            results: list[dict] = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+                futures = {}
+                for pi, img in page_iter:
+                    vec = vector_entities[pi] if (is_vector and pi < len(vector_entities) and vector_entities[pi]) else None
+                    futures[ex.submit(_process_single_page, job_id, pi, img, preview_dir, vec)] = pi
+                for fut in concurrent.futures.as_completed(futures):
                     try:
-                        ents.extend(ocr.extract_text(pp["gray"]))
-                    except Exception as oe:
-                        db.log(job_id, "WARN", f"OCR failed page {pi}: {oe}")
+                        r = fut.result()
+                        results.append(r)
+                    except Exception as pe:
+                        db.log(job_id, "ERROR", f"page {futures[fut]} failed: {pe}")
+                    done += 1
+                    db.update_job(job_id, stage=f"processed {done}/{total}", progress=0.05 + 0.85 * (done / max(1, total)))
 
-                for e in ents:
-                    e["page_index"] = pi
-                ents = reconstruct.reconstruct(ents)
-                ents, applied = learning.apply_rules(ents)
-                if applied:
-                    db.log(job_id, "INFO", f"Applied {applied} learned rule(s) on page {pi}")
-
+            # Sort by page index and persist
+            results.sort(key=lambda r: r["page_index"])
+            for r in results:
                 db.add_page(
                     job_id=job_id,
-                    page_index=pi,
-                    width=int(pp["deskewed"].shape[1]),
-                    height=int(pp["deskewed"].shape[0]),
-                    raw_path=str(raw_path),
-                    preview_path=str(prev_path),
-                    rotation=pp["rotation"],
+                    page_index=r["page_index"],
+                    width=r["width"],
+                    height=r["height"],
+                    raw_path=r["raw_path"],
+                    preview_path=r["preview_path"],
+                    rotation=r["rotation"],
                 )
-                pages_info.append({"page": pi, "h": pp["deskewed"].shape[0], "w": pp["deskewed"].shape[1]})
-                all_entities.extend(ents)
+                pages_info.append({"page": r["page_index"], "h": r["height"], "w": r["width"]})
+                all_entities.extend(r["entities"])
         else:
             img = ingest.load_image(filepath)
-            pi = 0
-            raw_path = preview_dir / f"p{pi}_raw.jpg"
-            prev_path = preview_dir / f"p{pi}_preview.jpg"
-            _save_preview(img, raw_path)
-            pp = preprocess.preprocess(img)
-            _save_preview(pp["deskewed"], prev_path)
-
-            ents = detect.detect_all(pp["binary"], pp["gray"])
-            try:
-                ents.extend(ocr.extract_text(pp["gray"]))
-            except Exception as oe:
-                db.log(job_id, "WARN", f"OCR failed: {oe}")
-            for e in ents:
-                e["page_index"] = pi
-            ents = reconstruct.reconstruct(ents)
-            ents, applied = learning.apply_rules(ents)
-            if applied:
-                db.log(job_id, "INFO", f"Applied {applied} learned rule(s)")
-
+            r = _process_single_page(job_id, 0, img, preview_dir, None)
             db.add_page(
                 job_id=job_id,
-                page_index=pi,
-                width=int(pp["deskewed"].shape[1]),
-                height=int(pp["deskewed"].shape[0]),
-                raw_path=str(raw_path),
-                preview_path=str(prev_path),
-                rotation=pp["rotation"],
+                page_index=0,
+                width=r["width"],
+                height=r["height"],
+                raw_path=r["raw_path"],
+                preview_path=r["preview_path"],
+                rotation=r["rotation"],
             )
-            pages_info.append({"page": pi, "h": pp["deskewed"].shape[0], "w": pp["deskewed"].shape[1]})
+            pages_info.append({"page": 0, "h": r["height"], "w": r["width"]})
             db.update_job(job_id, num_pages=1)
-            all_entities.extend(ents)
+            all_entities.extend(r["entities"])
 
         db.update_job(job_id, stage="saving entities", progress=0.9)
         db.add_entities(job_id, all_entities)
@@ -209,6 +221,20 @@ def _export_job_dxf(job_id: str) -> str:
                 y = float(d.get("y", 0))
                 t = msp.add_text(txt, dxfattribs={"layer": layer, "height": max(2.0, height * 0.8)})
                 t.set_placement((x, fy(y)))
+            elif kind == "hatch":
+                bbox = d.get("bbox")
+                if not bbox or len(bbox) != 4:
+                    continue
+                x0, y0, x1, y1 = [float(v) for v in bbox]
+                pts = [(x0, fy(y0)), (x1, fy(y0)), (x1, fy(y1)), (x0, fy(y1))]
+                msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": layer})
+                angle = float(d.get("angle_deg", 45))
+                try:
+                    h_ent = msp.add_hatch(dxfattribs={"layer": layer})
+                    h_ent.set_pattern_fill("ANSI31", scale=1.5, angle=angle)
+                    h_ent.paths.add_polyline_path(pts, is_closed=True)
+                except Exception:
+                    pass
         except Exception:
             continue
 

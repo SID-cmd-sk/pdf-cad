@@ -88,3 +88,4 @@ credentials.json
 *.pem
 *.key
 .credentials
+desktop/node_modules/electron/dist/electron

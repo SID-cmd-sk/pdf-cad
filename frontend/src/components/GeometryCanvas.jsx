@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
  * GeometryCanvas: pan/zoom viewer showing the background scan + interactive
  * SVG overlay of detected entities. Click an entity to select.
  */
-export default function GeometryCanvas({ width, height, imageUrl, entities, layers, selectedId, onSelect }) {
+export default function GeometryCanvas({ width, height, imageUrl, entities, layers, selectedId, onSelect, mode = "overlay" }) {
     const wrapRef = useRef();
     const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
     const [grab, setGrab] = useState(false);
@@ -160,6 +160,34 @@ export default function GeometryCanvas({ width, height, imageUrl, entities, laye
                 </g>
             );
         }
+        if (e.kind === "hatch") {
+            const bb = d.bbox || [0, 0, 0, 0];
+            const [x0, y0, x1, y1] = bb;
+            const patternId = `hatch-${e.id}`;
+            const angle = d.angle_deg || 45;
+            return (
+                <g key={e.id}>
+                    <defs>
+                        <pattern id={patternId} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform={`rotate(${angle})`}>
+                            <line x1="0" y1="0" x2="0" y2="8" stroke="#76f7e3" strokeWidth="1" opacity="0.6" />
+                        </pattern>
+                    </defs>
+                    <rect {...hit} x={x0} y={y0} width={x1 - x0} height={y1 - y0} />
+                    <rect
+                        {...common}
+                        x={x0}
+                        y={y0}
+                        width={x1 - x0}
+                        height={y1 - y0}
+                        fill={`url(#${patternId})`}
+                        stroke="#76f7e3"
+                        strokeDasharray="4 2"
+                        strokeWidth={strokeW}
+                        opacity="0.7"
+                    />
+                </g>
+            );
+        }
         return null;
     };
 
@@ -185,9 +213,10 @@ export default function GeometryCanvas({ width, height, imageUrl, entities, laye
                         transformOrigin: "0 0",
                         width,
                         height,
+                        background: mode === "dxf" ? "#05080c" : "transparent",
                     }}
                 >
-                    {imageUrl && (
+                    {imageUrl && mode !== "dxf" && (
                         <img
                             src={imageUrl}
                             alt="scan"

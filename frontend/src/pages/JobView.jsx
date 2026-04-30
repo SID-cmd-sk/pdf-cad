@@ -13,6 +13,7 @@ export default function JobView() {
     const [pageIdx, setPageIdx] = useState(0);
     const [layers, setLayers] = useState({ GEOMETRY: true, TEXT: true, DIMENSIONS: true, UNCERTAIN: true });
     const [selectedId, setSelectedId] = useState(null);
+    const [mode, setMode] = useState("overlay"); // overlay | dxf
 
     const refresh = useCallback(async () => {
         try {
@@ -147,15 +148,36 @@ export default function JobView() {
             {/* CANVAS */}
             <div style={{ position: "relative", overflow: "hidden" }}>
                 {currentPage ? (
-                    <GeometryCanvas
-                        width={currentPage.width}
-                        height={currentPage.height}
-                        imageUrl={`${pagePreviewUrl(id, currentPage.page_index)}`}
-                        entities={pageEntities}
-                        layers={layers}
-                        selectedId={selectedId}
-                        onSelect={(e) => setSelectedId(e.id)}
-                    />
+                    <>
+                        <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 6 }}>
+                            <button
+                                className="btn"
+                                onClick={() => setMode("overlay")}
+                                data-testid="mode-overlay"
+                                style={{ borderColor: mode === "overlay" ? "var(--accent)" : "var(--line-2)", color: mode === "overlay" ? "var(--accent)" : "var(--ink)" }}
+                            >
+                                Scan + Overlay
+                            </button>
+                            <button
+                                className="btn"
+                                onClick={() => setMode("dxf")}
+                                data-testid="mode-dxf"
+                                style={{ borderColor: mode === "dxf" ? "var(--accent)" : "var(--line-2)", color: mode === "dxf" ? "var(--accent)" : "var(--ink)" }}
+                            >
+                                DXF Preview
+                            </button>
+                        </div>
+                        <GeometryCanvas
+                            width={currentPage.width}
+                            height={currentPage.height}
+                            imageUrl={`${pagePreviewUrl(id, currentPage.page_index)}`}
+                            entities={pageEntities}
+                            layers={layers}
+                            selectedId={selectedId}
+                            onSelect={(e) => setSelectedId(e.id)}
+                            mode={mode}
+                        />
+                    </>
                 ) : (
                     <div style={{ padding: 40, color: "var(--ink-dim)" }}>
                         {isProcessing ? "Processing…" : "No pages available"}

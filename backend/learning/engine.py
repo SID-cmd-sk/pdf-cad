@@ -219,23 +219,34 @@ def record_correction(job_id: str, entity_before: dict | None, action_type: str,
 
 
 def seed_default_rules():
-    """Seed a couple of reasonable defaults so the learning system is visible from day one."""
+    """Seed a pragmatic library of rules common to CAD drawings."""
     existing = db.list_rules()
     if existing:
         return
-    db.create_rule(
-        pattern_signature="short_line<10",
-        pattern_data={"from_kind": "line"},
-        action_type="delete",
-        action_data={},
-        confidence=0.55,
-        notes="Delete tiny line fragments under 10px (noise).",
-    )
-    db.create_rule(
-        pattern_signature="many_vertex_poly>20",
-        pattern_data={"from_kind": "polyline"},
-        action_type="delete",
-        action_data={},
-        confidence=0.5,
-        notes="Delete very noisy polygons with > 20 vertices.",
-    )
+    seeds = [
+        # noise cleanup
+        ("short_line<10", "line", "delete", {}, 0.6, "Delete tiny line fragments under 10 px (noise)."),
+        ("short_line<25", "line", "mark_certain", {}, 0.4, "Short lines are usually fine; keep but de-flag."),
+        ("many_vertex_poly>20", "polyline", "delete", {}, 0.55, "Very noisy polygons (>20 vertices)."),
+        ("many_vertex_poly>12", "polyline", "mark_certain", {}, 0.3, "Moderately jagged polygons — keep."),
+        # arc/circle disambiguation
+        ("low_coverage_arc<0.4", "arc", "delete", {}, 0.5, "Arcs with <40% support are usually detection noise."),
+        ("low_coverage_arc<0.6", "arc", "mark_certain", {}, 0.4, "Low-coverage arcs — likely real but approximate."),
+        ("broken_circle<0.9", "circle", "mark_certain", {}, 0.5, "Mostly complete circles, typical of scans."),
+        ("broken_circle<0.8", "circle", "convert", {"to_kind": "arc", "start_angle": 0.0, "end_angle": 3.14159}, 0.4, "Heavily broken circles likely want to be arcs."),
+        # OCR fixes (common Tesseract confusions on CAD)
+        ("text_value:o", "text", "edit_text", {"text": "0"}, 0.7, "Lone O → 0 (dim numeric context)."),
+        ("text_value:l", "text", "edit_text", {"text": "1"}, 0.65, "Lone l → 1."),
+        ("text_value:s", "text", "edit_text", {"text": "5"}, 0.5, "Lone S → 5 (dim)."),
+        ("text_value:b", "text", "edit_text", {"text": "8"}, 0.45, "Lone B → 8 (dim)."),
+        ("low_conf_text<0.5", "text", "mark_certain", {}, 0.3, "Low-confidence text — keep but de-flag."),
+    ]
+    for sig, from_kind, act, act_data, conf, notes in seeds:
+        db.create_rule(
+            pattern_signature=sig,
+            pattern_data={"from_kind": from_kind},
+            action_type=act,
+            action_data=act_data,
+            confidence=conf,
+            notes=notes,
+        )

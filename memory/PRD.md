@@ -1,88 +1,62 @@
 # CAD/Assist — Product Requirements & Build Log
 
-## Original Problem Statement (verbatim)
+## Original Problem Statement
+Local-first scan → DXF conversion system with self-improving rule library. No paid APIs, no MongoDB, no cloud vision. One-command setup.
 
-Build a complete, working, local-first CAD conversion system that converts scanned
-drawings and documents into editable DXF CAD files, with a self-improving
-correction memory.
+## Architecture
+- **UI** React 19 SPA (dark CAD aesthetic, IBM Plex Mono/Sans)
+- **Backend** FastAPI + OpenCV + Tesseract 5 + PyMuPDF + ezdxf
+- **Storage** SQLite WAL in `backend/data/cadassist.sqlite3`
+- **Desktop shell** Electron + PyInstaller (in `/app/desktop/`)
+- **Launchers** `start.sh` (unix), `run_windows.bat` (windows), `desktop/` (native binaries)
 
-NON-NEGOTIABLE GOAL:
-1. Convert PDF → CAD (DXF)
-2. Convert PNG/JPG → CAD (DXF)
-3. Learn from human corrections over time
-4. Run locally on the user's machine
-5. Simple setup experience (1-command)
-6. No paid APIs / no cloud OCR / no MongoDB
+## Iterations
 
-## Architecture (chosen)
+### Iteration 1 (2026-02-xx)
+- Initial MVP: upload → pipeline → DXF → rules UI. Two default rules. Detection via Hough + contours. Tested 15/15 backend + full frontend. One UX fix (SVG hit overlays).
 
-- **UI**: React 19 SPA (dark CAD aesthetic, IBM Plex Mono/Sans)
-- **Backend**: FastAPI (Python 3.11), sync CV pipeline dispatched via `loop.run_in_executor`
-- **Storage**: SQLite with WAL (`/app/backend/data/cadassist.sqlite3`)
-- **Image / geometry**: OpenCV 4 + scikit-image + scipy
-- **PDF**: PyMuPDF (`fitz`) with vector-path extraction + 200 DPI rasterisation
-- **OCR**: Tesseract 5 via pytesseract, CAD whitelist, dimension heuristics
-- **DXF**: `ezdxf` with layered output (GEOMETRY · TEXT · DIMENSIONS · UNCERTAIN)
-- **Launcher**: `start.sh` (one command, auto-venv, auto-install, auto-start)
+### Iteration 2 (2026-02-xx) — user feedback pass
+User reported: (1) weak detection (arcs, text, hatches), (2) cloud preview slow, (3) server setup friction, (4) wanted scale to 1000s of drawings.
 
-## Users / Personas
+**Shipped**:
+- **Detection rewrite**: contour-based arc fitting (Kasa algebraic circle fit) catches arcs Hough misses; two-pass collinear line merge; hatch pattern detection (parallel equidistant line groups collapse to a single HATCH entity with ANSI31 pattern in the DXF).
+- **OCR fix**: removed unicode-char whitelist that was breaking tesseract config and filtering everything out. PSM 11 + PSM 6 multi-pass with IoU dedup. Now detects labels and dimensions reliably ("960mm", "BRACKET PLATE", "Ø200").
+- **DXF preview mode**: toggle in JobView between "Scan + Overlay" and "DXF Preview" (pure entity rendering on dark background, no raster).
+- **Parallel page processing**: ThreadPoolExecutor (4 workers) for multi-page PDFs in `pipeline.py`.
+- **13 pre-seeded rules** (up from 2): noise cleanup, arc/circle disambiguation, common OCR fixes (O→0, l→1, S→5, B→8).
+- **Batch CLI** `backend/batch.py`: run pipeline against a directory of drawings, write DXFs + per-file CSV report with entity counts, timings, uncertain counts. Lets user validate on their 1000s of CAD files from terminal.
+- **Windows one-shot `run_windows.bat`**: double-click → creates venv, installs deps, generates samples, starts backend+frontend, opens browser.
+- **Electron + PyInstaller desktop scaffolding** in `/app/desktop/` with `main.js` (spawns bundled backend as subprocess, waits for `/api/health`, loads React build), `preload.js`, `package.json` with electron-builder config for .exe/.dmg/.AppImage, full per-OS build README.
+- **Health check fix**: `/api/health` now actually invokes `pytesseract.get_tesseract_version()` instead of just checking module import.
 
-1. **CAD operator** digitising legacy paper drawings into editable DXF.
-2. **Engineer** who wants a local, offline, zero-API-cost pipeline to clean scans.
-3. **Power user** who wants the system to learn specific corrections (OCR typos, arc vs circle) and auto-apply them to the next job.
+**Batch benchmark** (3 sample drawings):
+```
+floor_plan.png      54 entities  4 uncertain  2.4s
+geometry_demo.png   15 entities  0 uncertain  1.4s
+mechanical_part.png 21 entities  5 uncertain  1.8s
+avg 1.86s/file
+```
 
-## Core Requirements (static)
+## Backlog
 
-- Drag-drop upload PDF / PNG / JPG / TIFF / WEBP (≤60 MB).
-- Automatic pipeline: ingest → preprocess → detect → OCR → reconstruct → learning → DXF.
-- Every detected entity has confidence; low-confidence entities are flagged as `uncertain` and rendered red.
-- Human corrections stored in SQLite; with "apply to similar" they become rules auto-applied on future jobs.
-- Rule library fully inspectable: view, disable, delete.
-- No cloud dependencies for core processing.
-
-## Implemented (2026-02-xx, Feb 2026 build)
-
-- [x] SQLite schema (jobs, pages, entities, rules, corrections, logs) with indexes + WAL.
-- [x] Backend endpoints: `/api/health`, `/api/jobs` (CRUD + upload + reprocess + dxf + preview + logs), `/api/entities/{id}`, `/api/jobs/{id}/correct`, `/api/rules` (CRUD + toggle).
-- [x] Pipeline modules: `ingest.py`, `preprocess.py`, `detect.py`, `ocr.py`, `reconstruct.py`, `export_dxf.py`, `pipeline.py`.
-- [x] Learning engine with pattern signatures (`short_line<10`, `low_coverage_arc<0.6`, `many_vertex_poly>20`, `low_conf_text<0.5`, `text_value:<val>`, `broken_circle<X>`) and actions (`delete`, `convert`, `edit_text`, `close_shape`, `mark_certain`). Two defaults seeded on startup.
-- [x] React UI: Home (upload + jobs + system status), JobView (left meta+layers, SVG canvas with pan/zoom, right inspector + uncertain list), Rules, About.
-- [x] GeometryCanvas renders geometry overlay on top of the scan with invisible thicker hit overlays for click-ability.
-- [x] Sample drawings auto-generated (`sample_gen.py`): mechanical part, floor plan, geometry demo.
-- [x] `start.sh` local one-command launcher.
-- [x] Complete README with architecture, API, packaging notes.
-
-## Backlog / Next Steps
-
-### P0 (near-term polish)
-- Native desktop packaging: Electron wrapper spawning a PyInstaller-bundled backend.
-- Per-entity raw geometry editor (handle drag on endpoints) so users can move without converting.
+### P0 (next)
+- Per-endpoint drag to manually move detected line endpoints on canvas.
+- Vector PDF full path mode (stroke-width + color preservation).
+- Bundle a Tesseract Windows binary into `desktop/bin/` for truly keyless setup.
 
 ### P1
-- Arc start/end angle manual editing in the Inspector.
-- Multi-select + bulk actions (delete, mark-certain, convert).
-- DXF re-import to iteratively re-clean a previously exported file.
-- Per-layer export options (e.g., text off).
+- Scale inference from detected dimension text (1:50, 1:100…).
+- Multi-select + bulk corrections.
+- On-disk undo history per job.
 
 ### P2
-- Scale inference from detected dimension text (1:50, 1:100…) and store to Page.scale.
-- Preview DXF viewer on-screen after export.
-- Export alternate formats: SVG, PDF (vector).
+- Shareable rule-pack export/import (JSON) so teams can exchange knowledge bases.
+- Per-layer DXF export options.
 
-## Deferred
-
-- Authentication: not required for a local tool.
-- Cloud sync: explicitly forbidden by problem statement.
+## Not done (out of scope)
+- Deep-learning detection (problem statement requires rule-based, explainable, no cloud AI).
+- Cross-platform binary build from one machine (intrinsically impossible — users build on their target OS).
 
 ## Known limitations
-
-- Hough-based arc detection is inherently approximate — hence the "uncertain" layer. Learning fixes this over time per drawing style.
-- OCR on hand-written or very stylised fonts is limited; dedicated handwriting model out-of-scope here.
-- Very large multi-page PDFs are processed sequentially; parallelism deferred.
-
-## Testing
-
-Iteration 1 — full stack tested by `testing_agent_v3`:
-- Backend: 15/15 pytest cases pass (upload, process, DXF, preview, rules CRUD, correction→rule, negative cases).
-- Frontend: all flows and testids work (upload, navigate to job, layer toggles, inspector for uncertain items, rules toggle/delete, about page).
-- One UX concern (SVG thin-stroke hit areas) was fixed post-test via invisible hit overlays in `GeometryCanvas.jsx`.
+- Handwritten text / stylised fonts: limited OCR accuracy (fundamental Tesseract limit).
+- Very large drawings are capped at 3500 px on the longest side.

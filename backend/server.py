@@ -73,8 +73,10 @@ class RuleUpdateIn(BaseModel):
 # ---------- Health ----------
 @api.get("/health", response_model=HealthOut)
 async def health():
+    has_tess = False
     try:
-        import pytesseract  # noqa
+        import pytesseract
+        pytesseract.get_tesseract_version()
         has_tess = True
     except Exception:
         has_tess = False

@@ -71,6 +71,20 @@ def entities_to_dxf(entities: list[dict], out_path: str | Path, page_height: flo
                 y = float(d.get("y", 0))
                 t = msp.add_text(txt, dxfattribs={"layer": layer, "height": max(2.0, height * 0.8)})
                 t.set_placement((x, fy(y)))
+            elif kind == "hatch":
+                bbox = d.get("bbox")
+                if not bbox or len(bbox) != 4:
+                    continue
+                x0, y0, x1, y1 = [float(v) for v in bbox]
+                pts = [(x0, fy(y0)), (x1, fy(y0)), (x1, fy(y1)), (x0, fy(y1))]
+                msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": layer})
+                angle = float(d.get("angle_deg", 45))
+                try:
+                    h_ent = msp.add_hatch(dxfattribs={"layer": layer})
+                    h_ent.set_pattern_fill("ANSI31", scale=1.5, angle=angle)
+                    h_ent.paths.add_polyline_path(pts, is_closed=True)
+                except Exception:
+                    pass
         except Exception:
             # Skip malformed entity but keep going
             continue
