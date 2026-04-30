@@ -129,7 +129,13 @@ The backend is a single Python app and the UI is a static React bundle, so wrapp
 2. Bundle the Python backend with PyInstaller: `pyinstaller --onefile backend/server.py` (on Windows make sure `tesseract.exe` is on the PATH or ship it alongside).
 3. Create a thin Electron main process that spawns the backend binary, waits until `:8001/api/health` is reachable, and loads the React build from disk.
 
-A recipe is left as an intentionally-small exercise — the code above is fully ready for it.
+For Windows local/CI builds, use one command from repo root:
+
+```powershell
+python scripts/build_exe.py
+```
+
+This produces an installer in `desktop/dist/`.
 
 ---
 

@@ -15,6 +15,14 @@ No Python, Node or Tesseract needs to be installed by end users — except Tesse
 
 > You must build on the OS you want to ship for. Electron does not cross-compile reliably across platforms.
 
+### Single command (Windows / local or CI)
+
+```powershell
+python scripts/build_exe.py
+```
+
+This one command installs dependencies, builds backend exe, builds frontend bundle, and creates the Windows installer in `desktop/dist/`.
+
 ### Prerequisites
 
 - Node.js 18+ and `yarn`
